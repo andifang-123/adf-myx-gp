@@ -1,0 +1,389 @@
+---
+title: "Group Project Report Preprocessing File"
+subtitle: "CPS Resource and Opportunity Index Construction"
+author:
+  - name: "Andi Fang"
+  - name: "Minyang Xu"
+date: "2026.02.22"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+  pdf:
+    toc: true
+    number-sections: true
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+include-before-body:
+  text: |
+    \RecustomVerbatimEnvironment{verbatim}{Verbatim}{
+      showspaces = false,
+      showtabs = false,
+      breaksymbolleft={},
+      breaklines
+    }
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# 1. Introduction
+
+This project constructs a unified dataset of Chicago Public Schools (CPS) by integrating administrative records, academic performance measures, demographic characteristics, and survey-based institutional indicators.
+
+We develop three composite indices:
+
+- **Resource Index (RI)**: combining physical and institutional capacity
+- **Simpson Diversity Index**: measuring racial concentration
+- **Opportunity Index (OI)**: capturing cumulative student disadvantage
+
+These measures allow us to examine patterns of resource allocation and student disadvantage across schools. The resulting dataset is saved for downstream analysis.
+
+---
+
+# 2. Environment Setup
+
+```{python}
+import pandas as pd
+from pathlib import Path
+import numpy as np
+from scipy.stats import zscore
+
+project_root = Path(__file__).resolve().parents[1]
+raw_dir = project_root / "data" / "raw-data"
+derived_dir = project_root / "data" / "derived-data"
+```
+
+All paths are defined relative to the project root to ensure reproducibility.
+
+---
+
+# 3. Helper Functions
+
+```{python}
+def clean_id(series):
+    return (
+        series.astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace(".0", "", regex=False)
+        .str.strip()
+    )
+
+def load_excel_merge(path, sheet, cols, id_col):
+    df = pd.read_excel(path, sheet_name=sheet, usecols=cols)
+    df = df.rename(columns={id_col: "School_ID"})
+    df["School_ID"] = clean_id(df["School_ID"])
+    return df
+```
+
+These functions standardize school identifiers across datasets before merging.
+
+---
+
+# 4. Base Dataset Construction
+
+```{python}
+cps = pd.read_csv(raw_dir / "cps_info.csv", sep=";")
+
+cps["School_ID"] = clean_id(cps["School_ID"])
+cps["Zip"] = clean_id(cps["Zip"])
+
+cps = cps[
+    [
+        "School_ID",
+        "Short_Name",
+        "Long_Name",
+        "Primary_Category",
+        "Zip",
+        "School_Latitude",
+        "School_Longitude",
+    ]
+]
+
+cps.head()
+```
+
+This base dataset provides structural school-level identifiers and geographic information.
+
+---
+
+# 5. Merging Institutional and Demographic Data
+
+## 5.1 5Essentials Survey (Institutional Quality)
+
+```{python}
+ess = load_excel_merge(
+    raw_dir / "5essentials.xlsx",
+    "Data",
+    [
+        "schoolID",
+        "Ambitious Instruction",
+        "Effective Leaders",
+        "Collaborative Teachers",
+        "Involved Families",
+        "Supportive Environment",
+    ],
+    "schoolID",
+)
+
+ess["Involved Families"] = pd.to_numeric(ess["Involved Families"], errors="coerce")
+cps = cps.merge(ess, on="School_ID", how="left")
+```
+
+These variables measure soft institutional capacity and school climate.
+
+---
+
+## 5.2 Space Utilization (Hard Resources)
+
+```{python}
+space = load_excel_merge(
+    raw_dir / "spaceuse.xlsx",
+    "Data",
+    [
+        "School ID",
+        "Total Classrooms (CRs)",
+        "SY2026 Adjusted SU 2",
+    ],
+    "School ID",
+)
+
+cps = cps.merge(space, on="School_ID", how="left")
+```
+
+Space utilization captures physical capacity pressure within schools.
+
+---
+
+## 5.3 Student Demographics
+
+```{python}
+lif = load_excel_merge(
+    raw_dir / "demo_lepiepfrm.xlsx",
+    "Schools",
+    [
+        "School ID",
+        "State English Learners N",
+        "State English Learners %",
+        "Students with Disabilities N",
+        "Students with Disabilities %",
+        "Economically Disadvantaged N",
+        "Economically Disadvantaged %",
+    ],
+    "School ID",
+)
+
+cps = cps.merge(lif, on="School_ID", how="left")
+```
+
+These measures capture dimensions of student disadvantage.
+
+---
+
+## 5.4 Racial Composition
+
+```{python}
+race = load_excel_merge(
+    raw_dir / "demo_racialethnic.xlsx",
+    "Schools",
+    [
+        "School ID",
+        "Total",
+        "White N",
+        "Black/African American N",
+        "Latinx N",
+        "Not Available N",
+    ],
+    "School ID",
+)
+
+cps = cps.merge(race, on="School_ID", how="left")
+
+cps["Others N"] = (
+    cps["Total"]
+    - cps["White N"]
+    - cps["Black/African American N"]
+    - cps["Latinx N"]
+    - cps["Not Available N"]
+)
+
+denom = (cps["Total"] - cps["Not Available N"]).replace(0, np.nan)
+
+cps["White %"] = cps["White N"] / denom
+cps["Black %"] = cps["Black/African American N"] / denom
+cps["Latinx %"] = cps["Latinx N"] / denom
+cps["Others %"] = cps["Others N"] / denom
+
+cps = cps.drop(
+    columns=[
+        "White N",
+        "Black/African American N",
+        "Latinx N",
+        "Others N",
+        "Not Available N",
+    ]
+)
+```
+
+We convert raw counts into proportional racial shares.
+
+---
+
+## 5.5 IAR Academic Performance
+
+```{python}
+iar = pd.read_csv(raw_dir / "iar_proficiency.csv")
+
+iar_filtered = iar.loc[
+    iar["Test Name"].isin(["IAR ELA", "IAR MATH"]) &
+    (iar["Student Group"] == "All Students"),
+    ["School Code", "Test Name", "%At or Above Proficient"]
+].copy()
+iar_filtered["%At or Above Proficient"] = pd.to_numeric(
+    iar_filtered["%At or Above Proficient"], errors="coerce"
+)
+
+iar_wide = (
+    iar_filtered
+    .pivot(index="School Code", columns="Test Name", values="%At or Above Proficient")
+    .reset_index()
+    .rename(columns={
+        "School Code": "School_ID",   
+        "IAR ELA": "IAR ELA %",
+        "IAR MATH": "IAR MATH %"
+    })
+)
+
+iar_wide["School_ID"] = clean_id(iar_wide["School_ID"])
+cps = cps.merge(iar_wide, on="School_ID", how="left")
+
+iar["School_ID"] = clean_id(iar["School Code"])
+cps = cps[cps["School_ID"].isin(iar["School_ID"])]
+```
+
+We incorporate standardized test performance using IAR proficiency rates in English Language Arts (ELA) and Mathematics. Only "All Students" results are retained to ensure comparability across schools.
+
+To ensure consistency in outcome measurement, we restrict the sample to schools appearing in the IAR dataset. This effectively limits the analysis to elementary schools with standardized test performance data.
+
+---
+
+# 6. Index Construction
+
+## 6.1 Resource Index (RI)
+
+```{python}
+c = 0.85        # efficient center
+gamma = 1.7     # crowding penalty
+
+su = cps["SY2026 Adjusted SU 2"]
+
+d = np.where(
+    su < 0.7,
+    c - su,
+    np.where(
+        su <= 1.0,
+        np.abs(su - c),
+        gamma * (su - c),
+    ),
+)
+
+cps["SU_distance"] = d
+cps["Hard Resource Index"] = -zscore(cps["SU_distance"], nan_policy="omit")
+cps = cps.drop(columns=["SU_distance"])
+
+fiveE = [
+    "Ambitious Instruction",
+    "Effective Leaders",
+    "Collaborative Teachers",
+    "Involved Families",
+    "Supportive Environment",
+]
+
+for col in fiveE:
+    cps[f"{col}_z"] = zscore(cps[col], nan_policy="omit")
+
+z_cols = [f"{c}_z" for c in fiveE]
+cps["Soft Resource Index"] = cps[z_cols].mean(axis=1)
+cps = cps.drop(columns=z_cols)
+
+cps["RI"] = 0.5 * cps["Hard Resource Index"] + 0.5 * cps["Soft Resource Index"]
+```
+
+The Resource Index combines physical and institutional capacity.
+
+---
+
+## 6.2 Simpson Diversity Index
+
+```{python}
+race_pct_cols = ["White %", "Black %", "Latinx %", "Others %"]
+for c in race_pct_cols:
+    cps[c] = pd.to_numeric(cps[c], errors="coerce")
+
+cps["Simpson Diversity Index"] = (cps[race_pct_cols] ** 2).sum(axis=1)
+```
+
+Higher values indicate greater racial concentration.
+
+---
+
+## 6.3 Opportunity Index (OI)
+
+```{python}
+ed_col = "Economically Disadvantaged %"
+ell_col = "State English Learners %"
+dis_col = "Students with Disabilities %"
+race_index_col = "Simpson Diversity Index"
+
+required_cols = [ed_col, ell_col, dis_col, race_index_col]
+for c in required_cols:
+    cps[c] = pd.to_numeric(cps[c], errors="coerce")
+
+def zscore_series(s):
+    mu = s.mean(skipna=True)
+    sigma = s.std(skipna=True, ddof=0)
+    if pd.isna(sigma) or sigma == 0:
+        return pd.Series(np.nan, index=s.index)
+    return (s - mu) / sigma
+
+cps["Z_ED"] = zscore_series(cps[ed_col])
+cps["Z_ELL"] = zscore_series(cps[ell_col])
+cps["Z_DIS"] = zscore_series(cps[dis_col])
+cps["Z_RACE"] = zscore_series(cps[race_index_col])
+
+cps["OI"] = (
+    cps["Z_ED"] + cps["Z_ELL"] + cps["Z_DIS"] + cps["Z_RACE"]
+) / 4
+
+cps = cps.drop(columns=["Z_ED", "Z_ELL", "Z_DIS", "Z_RACE"])
+```
+
+The Opportunity Index summarizes cumulative student disadvantage exposure.
+
+---
+
+# 7. Save Final Dataset
+
+```{python}
+derived_dir.mkdir(parents=True, exist_ok=True)
+output_path = derived_dir / "cps_df.csv"
+cps.to_csv(output_path, index=False)
+
+print(f"Final CPS dataset saved: {output_path}")
+print(f"Rows: {len(cps)}, Columns: {len(cps.columns)}")
+cps.head(5)
+```
+
+---
+
+# 8. Conclusion
+
+This document integrates multiple CPS data sources into a single research-ready dataset.  
+
+The constructed indices enable future empirical analysis of educational equity, resource allocation, and performance disparities across schools.
