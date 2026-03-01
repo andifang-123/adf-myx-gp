@@ -321,13 +321,50 @@ The Resource Index combines physical and institutional capacity.
 
 ## 6.2 Simpson Diversity Index
 
+```{python}
+race_pct_cols = ["White %", "Black %", "Latinx %", "Others %"]
+for c in race_pct_cols:
+    cps[c] = pd.to_numeric(cps[c], errors="coerce")
 
+cps["Simpson Diversity Index"] = (cps[race_pct_cols] ** 2).sum(axis=1)
+```
+
+Higher values indicate greater racial concentration.
 
 ---
 
 ## 6.3 Opportunity Index (OI)
 
+```{python}
+ed_col = "Economically Disadvantaged %"
+ell_col = "State English Learners %"
+dis_col = "Students with Disabilities %"
+race_index_col = "Simpson Diversity Index"
 
+required_cols = [ed_col, ell_col, dis_col, race_index_col]
+for c in required_cols:
+    cps[c] = pd.to_numeric(cps[c], errors="coerce")
+
+def zscore_series(s):
+    mu = s.mean(skipna=True)
+    sigma = s.std(skipna=True, ddof=0)
+    if pd.isna(sigma) or sigma == 0:
+        return pd.Series(np.nan, index=s.index)
+    return (s - mu) / sigma
+
+cps["Z_ED"] = zscore_series(cps[ed_col])
+cps["Z_ELL"] = zscore_series(cps[ell_col])
+cps["Z_DIS"] = zscore_series(cps[dis_col])
+cps["Z_RACE"] = zscore_series(cps[race_index_col])
+
+cps["OI"] = (
+    cps["Z_ED"] + cps["Z_ELL"] + cps["Z_DIS"] + cps["Z_RACE"]
+) / 4
+
+cps = cps.drop(columns=["Z_ED", "Z_ELL", "Z_DIS", "Z_RACE"])
+```
+
+The Opportunity Index summarizes cumulative student disadvantage exposure.
 
 ---
 
@@ -347,3 +384,6 @@ cps.head(5)
 
 # 8. Conclusion
 
+This document integrates multiple CPS data sources into a single research-ready dataset.  
+
+The constructed indices enable future empirical analysis of educational equity, resource allocation, and performance disparities across schools.
