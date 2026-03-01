@@ -4,13 +4,15 @@ subtitle: "CPS Resource and Opportunity Index Construction"
 author:
   - name: "Andi Fang"
   - name: "Minyang Xu"
-date: "2026.02.22"
+date: "2026-02-22"
+
 format:
   html:
     toc: true
     toc-depth: 3
     number-sections: true
     code-fold: false
+
   pdf:
     toc: true
     number-sections: true
@@ -19,21 +21,15 @@ format:
       text: |
         \usepackage{fvextra}
         \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
-include-before-body:
-  text: |
-    \RecustomVerbatimEnvironment{verbatim}{Verbatim}{
-      showspaces = false,
-      showtabs = false,
-      breaksymbolleft={},
-      breaklines
-    }
+        \fvset{breaklines=true,breakanywhere=true}
+
 execute:
   echo: true
   warning: false
   message: false
 ---
 
-# 1. Introduction
+# Introduction
 
 This project constructs a unified dataset of Chicago Public Schools (CPS) by integrating administrative records, academic performance measures, demographic characteristics, and survey-based institutional indicators.
 
@@ -47,15 +43,16 @@ These measures allow us to examine patterns of resource allocation and student d
 
 ---
 
-# 2. Environment Setup
+# Environment Setup
 
 ```{python}
 import pandas as pd
 from pathlib import Path
 import numpy as np
 from scipy.stats import zscore
+import os
 
-project_root = Path(__file__).resolve().parents[1]
+project_root = Path(os.environ.get("QUARTO_PROJECT_DIR", Path.cwd())).resolve().parent
 raw_dir = project_root / "data" / "raw-data"
 derived_dir = project_root / "data" / "derived-data"
 ```
@@ -64,7 +61,7 @@ All paths are defined relative to the project root to ensure reproducibility.
 
 ---
 
-# 3. Helper Functions
+# Helper Functions
 
 ```{python}
 def clean_id(series):
@@ -86,7 +83,7 @@ These functions standardize school identifiers across datasets before merging.
 
 ---
 
-# 4. Base Dataset Construction
+# Base Dataset Construction
 
 ```{python}
 cps = pd.read_csv(raw_dir / "cps_info.csv", sep=";")
@@ -113,9 +110,9 @@ This base dataset provides structural school-level identifiers and geographic in
 
 ---
 
-# 5. Merging Institutional and Demographic Data
+# Merging Institutional and Demographic Data
 
-## 5.1 5Essentials Survey (Institutional Quality)
+## 5Essentials Survey (Institutional Quality)
 
 ```{python}
 ess = load_excel_merge(
@@ -140,7 +137,7 @@ These variables measure soft institutional capacity and school climate.
 
 ---
 
-## 5.2 Space Utilization (Hard Resources)
+## Space Utilization (Hard Resources)
 
 ```{python}
 space = load_excel_merge(
@@ -161,7 +158,7 @@ Space utilization captures physical capacity pressure within schools.
 
 ---
 
-## 5.3 Student Demographics
+## Student Demographics
 
 ```{python}
 lif = load_excel_merge(
@@ -186,7 +183,7 @@ These measures capture dimensions of student disadvantage.
 
 ---
 
-## 5.4 Racial Composition
+## Racial Composition
 
 ```{python}
 race = load_excel_merge(
@@ -235,7 +232,7 @@ We convert raw counts into proportional racial shares.
 
 ---
 
-## 5.5 IAR Academic Performance
+## IAR Academic Performance
 
 ```{python}
 iar = pd.read_csv(raw_dir / "iar_proficiency.csv")
@@ -273,9 +270,9 @@ To ensure consistency in outcome measurement, we restrict the sample to schools 
 
 ---
 
-# 6. Index Construction
+# Index Construction
 
-## 6.1 Resource Index (RI)
+## Resource Index (RI)
 
 ```{python}
 c = 0.85        # efficient center
@@ -319,7 +316,7 @@ The Resource Index combines physical and institutional capacity.
 
 ---
 
-## 6.2 Simpson Diversity Index
+## Simpson Diversity Index
 
 ```{python}
 race_pct_cols = ["White %", "Black %", "Latinx %", "Others %"]
@@ -333,7 +330,7 @@ Higher values indicate greater racial concentration.
 
 ---
 
-## 6.3 Opportunity Index (OI)
+## Opportunity Index (OI)
 
 ```{python}
 ed_col = "Economically Disadvantaged %"
@@ -368,7 +365,7 @@ The Opportunity Index summarizes cumulative student disadvantage exposure.
 
 ---
 
-# 7. Save Final Dataset
+# Save Final Dataset
 
 ```{python}
 derived_dir.mkdir(parents=True, exist_ok=True)
@@ -382,7 +379,7 @@ cps.head(5)
 
 ---
 
-# 8. Conclusion
+# Conclusion
 
 This document integrates multiple CPS data sources into a single research-ready dataset.  
 
