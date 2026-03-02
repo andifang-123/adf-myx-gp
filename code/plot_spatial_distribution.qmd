@@ -1,0 +1,176 @@
+---
+title: "CPS Spatial Distribution Plot"
+subtitle: "Schools by Community Areas & Enrollment Threshold Highlighting"
+author:
+  - name: "Andi Fang"
+  - name: "Minyang Xu"
+date: "2026-02-25"
+format:
+  pdf:
+    toc: true
+    number-sections: true
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+        \fvset{breaklines=true,breakanywhere=true}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Introduction
+
+This document visualizes Chicago Public Schools (CPS) on top of Chicago community boundaries.
+Schools are split into two groups using an enrollment threshold (the 0.75 quantile of total enrollment), and plotted with different marker colors.
+
+- **Blue points**: schools at/below the 0.75 quantile threshold  
+- **Red points**: schools above the 0.75 quantile threshold  
+
+---
+
+# Environment Setup
+
+```{python}
+import pandas as pd
+import geopandas as gpd
+from shapely import wkt
+import matplotlib.pyplot as plt
+from pathlib import Path
+import numpy as np
+import os
+```
+
+We define file paths relative to the project root to ensure reproducibility.
+
+```{python}
+project_root = Path(os.environ.get("QUARTO_PROJECT_DIR", Path.cwd())).resolve().parent
+
+raw_community = project_root / "data" / "raw-data" / "community_boundaries.csv"
+raw_schools   = project_root / "data" / "derived-data" / "cps_df.csv"
+```
+
+# Load Data
+```{python}
+comm_df = pd.read_csv(raw_community, sep=";")
+schools_df = pd.read_csv(raw_schools, sep=None, engine="python")
+```
+
+# Convert to GeoDataFrames
+```{python}
+comm_gdf = gpd.GeoDataFrame(
+    comm_df,
+    geometry=comm_df["the_geom"].apply(wkt.loads),
+    crs="EPSG:4326",
+)
+
+schools_gdf = gpd.GeoDataFrame(
+    schools_df,
+    geometry=gpd.points_from_xy(schools_df["School_Longitude"], schools_df["School_Latitude"]),
+    crs="EPSG:4326",
+)
+```
+
+
+# Data Cleaning
+```{python}
+schools_df["School_Longitude"] = pd.to_numeric(schools_df["School_Longitude"], errors="coerce")
+schools_df["School_Latitude"]  = pd.to_numeric(schools_df["School_Latitude"],  errors="coerce")
+schools_df = schools_df.dropna(subset=["School_Longitude", "School_Latitude"]).copy()
+
+schools_gdf = gpd.GeoDataFrame(
+    schools_df,
+    geometry=gpd.points_from_xy(schools_df["School_Longitude"], schools_df["School_Latitude"]),
+    crs="EPSG:4326",
+)
+
+schools_gdf["Total"] = (
+    schools_gdf["Total"]
+      .astype(str)
+      .str.replace(",", "", regex=False)
+)
+schools_gdf["Total"] = pd.to_numeric(schools_gdf["Total"], errors="coerce")
+
+schools_gdf[["Total"]].describe()
+```
+
+
+# Threshold Definition
+
+We define the threshold as the 0.75 quantile of Total enrollment.
+
+```{python}
+q = 0.75
+thr = schools_gdf["Total"].quantile(q)
+
+schools_gdf["above_thr"] = schools_gdf["Total"] > thr
+schools_gdf["above_thr"].value_counts(dropna=False)
+
+schools_gdf["size_bin"] = pd.qcut(
+    schools_gdf["Total"],
+    q=4,
+    duplicates="drop"
+)
+
+size_map = {b: s for b, s in zip(schools_gdf["size_bin"].cat.categories, [10, 25, 45, 70])}
+schools_gdf["ms"] = schools_gdf["size_bin"].map(size_map)
+
+schools_gdf[["Total", "size_bin", "ms"]].head()
+```
+
+
+# Plot: Schools over Community Areas
+```{python}
+COMM_FILL = "#dbeff2"
+COMM_EDGE = "#111111"
+
+fig, ax = plt.subplots(figsize=(10, 10))
+
+# community polygons
+comm_gdf.plot(
+    ax=ax,
+    facecolor="white",
+    edgecolor="black",
+    linewidth=1.6,
+    zorder=1
+)
+
+# schools: below threshold (blue)
+schools_gdf.loc[~schools_gdf["above_thr"]].plot(
+    ax=ax,
+    markersize=12,
+    color="#2b6cb0",
+    alpha=0.75,
+    linewidth=0,
+    label="Schools ≤ threshold",
+    zorder=2
+)
+
+# schools: above threshold (red)
+schools_gdf.loc[schools_gdf["above_thr"]].plot(
+    ax=ax,
+    markersize=35,
+    color="#d62828",
+    alpha=0.85,
+    linewidth=0,
+    label="Schools > threshold",
+    zorder=3
+)
+
+ax.set_title("Chicago Public Schools by Community Areas", fontsize=16, pad=14)
+ax.set_axis_off()
+ax.legend(
+    title="Student Enrollment",
+    labels=[
+        "Schools at/below the 0.75 quantile",
+        "Schools above the 0.75 quantile"
+    ],
+    loc="lower left",
+    frameon=True
+)
+
+plt.tight_layout()
+plt.show()
+```
