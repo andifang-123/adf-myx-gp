@@ -1,0 +1,184 @@
+---
+title: "CPS Resource Allocation Plot"
+subtitle: "Regression Analysis of the Resource Index (RI) and Opportunity Index (OI) Across CPS Schools"
+author:
+  - name: "Andi Fang"
+  - name: "Minyang Xu"
+date: "2026-02-25"
+format:
+  pdf:
+    toc: true
+    number-sections: true
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+        \fvset{breaklines=true,breakanywhere=true}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Regression Analysis: RI and OI
+
+In this section, we examine the relationship between the **Resource Index (RI)** and the **Opportunity Index (OI)**.
+
+Specifically, we estimate the following linear model:
+
+RIᵢ = α + β OIᵢ + εᵢ
+
+This regression allows us to assess whether schools serving more disadvantaged populations (higher OI) tend to have systematically different resource levels (RI).
+
+---
+
+# Environment Setup for Analysis
+
+```{python}
+import pandas as pd
+import altair as alt
+from pathlib import Path
+import statsmodels.api as sm
+import tempfile
+from IPython.display import Image, display
+import vl_convert as vlc
+import os
+
+# Define project paths robustly for Quarto
+project_root = Path(os.environ.get("QUARTO_PROJECT_DIR", Path.cwd())).resolve().parent
+derived_dir = project_root / "data" / "derived-data"
+
+# Load cleaned dataset
+df = pd.read_csv(derived_dir / "cps_df.csv")
+```
+
+We load the previously constructed dataset containing RI and OI.
+
+---
+
+# Data Cleaning for Regression
+
+```{python}
+# Drop missing values in key variables
+df_clean = df.dropna(subset=['OI', 'RI'])
+
+len(df_clean)
+```
+
+We restrict the regression sample to schools with non-missing Resource Index and Opportunity Index values.
+
+---
+
+# Ordinary Least Squares (OLS) Regression
+
+```{python}
+# Define regression variables
+X = sm.add_constant(df_clean['OI'])
+y = df_clean['RI']
+
+# Fit OLS model
+model = sm.OLS(y, X).fit()
+
+# Extract p-value for OI coefficient
+p_value = model.pvalues['OI']
+p_text = f"p-value: {p_value:.3e}"
+
+model.summary()
+```
+
+This regression estimates the marginal association between OI and RI.  
+The p-value indicates whether the relationship is statistically significant.
+
+---
+
+# Visualization: RI vs OI
+
+To better illustrate the relationship, we construct a scatter plot with:
+
+- Individual schools as points
+- A fitted linear regression line
+- The p-value displayed on the figure
+
+```{python}
+# Scatter plot
+scatter = alt.Chart(df_clean).mark_point(
+    filled=True,
+    size=60,
+    color="#1f77b4"
+).encode(
+    x=alt.X('OI:Q', title='Opportunity Index (OI)'),
+    y=alt.Y('RI:Q', title='Resource Index (RI)'),
+    tooltip=[
+        alt.Tooltip('Short_Name:N', title='School'),
+        alt.Tooltip('OI:Q'),
+        alt.Tooltip('RI:Q')
+    ]
+)
+
+# Add regression line
+regression = scatter.transform_regression('OI', 'RI').mark_line(
+    color='red',
+    size=2
+)
+
+# Add p-value annotation
+text = alt.Chart(pd.DataFrame({'text':[p_text]})).mark_text(
+    align='right',
+    baseline='bottom',
+    dx=-10,
+    dy=-10,
+    color='red',
+    fontSize=12
+).encode(
+    x=alt.value(590),
+    y=alt.value(390),
+    text='text:N'
+)
+
+# Combine layers
+chart = (scatter + regression + text).properties(
+    width=600,
+    height=400,
+    padding={"top": 15, "bottom": 15, "left": 10, "right": 10},
+    title='Resource Index vs Opportunity Index'
+)
+
+chart
+```
+
+The scatter plot visually represents the direction and strength of the relationship between school disadvantage and resource allocation.
+
+---
+
+# Exporting High-Resolution PNG
+
+For submission purposes, we export the figure as a high-resolution PNG file.
+
+```{python}
+# Convert chart to PNG bytes
+png_bytes = vlc.vegalite_to_png(chart.to_dict(), scale=3)
+
+# Save to derived-data directory
+output_path = derived_dir / "plot_RI_vs_OI.png"
+with open(output_path, "wb") as f:
+    f.write(png_bytes)
+
+print(f"Saved chart as PNG: {output_path}")
+```
+
+The image file can now be used in slides or included in the PDF submission.
+
+---
+
+# Interpretation
+
+If β > 0:
+Schools serving more disadvantaged populations tend to have higher Resource Index values.
+
+If β < 0:
+Schools serving more disadvantaged populations tend to have lower Resource Index values.
+
+Statistical significance (based on the p-value) determines whether this relationship is distinguishable from zero.
+
+This analysis provides a first step toward evaluating whether resource allocation systematically aligns with student disadvantage.
