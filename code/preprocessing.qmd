@@ -7,12 +7,6 @@ author:
 date: "2026-02-22"
 
 format:
-  html:
-    toc: true
-    toc-depth: 3
-    number-sections: true
-    code-fold: false
-
   pdf:
     toc: true
     number-sections: true
