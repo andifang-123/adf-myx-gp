@@ -337,9 +337,16 @@ if main_section == "Spatial Distribution":
         st.markdown(table_title)
         st.dataframe(top_or_bottom_10, use_container_width=True)
 
-
 elif main_section == "Scatter Plot":
     st.header("Scatter Plot")
+
+    st.info(
+        "Resource Index (RI) = 0.5*Hard Resources + 0.5*Soft Resources\n"
+        "Hard Resources: Space Utilization, facility capacity etc.\n"
+        "Soft Resources: 5Essentials Survey dimensions (Instruction, Leaders, Teachers, Families, Environment)\n\n"
+        "Opportunity Index (OI) = avg(Z-scores of ED, EL, DIS, RACE)\n"
+        "Higher OI = greater structural disadvantage"
+    )
 
     c1, c2 = st.columns(2)
     with c1:
@@ -384,7 +391,8 @@ elif main_section == "Scatter Plot":
         st.markdown(
             f"""
             <div style="font-size: 0.88rem; color: #666666; margin-top: -0.35rem; text-align: left;">
-                Linear regression (slope test): slope = {slope_text}, p-value {p_text}, n = {n_text}
+                Linear regression: slope = {slope_text}, p-value = {p_text}, n = {n_text}.<br>
+                Interpretation: {"Low correlation suggests misalignment of resources and student needs." if abs(reg_stats["slope"]) < 0.1 else "Slope indicates positive association between index and score."}
             </div>
             """,
             unsafe_allow_html=True,

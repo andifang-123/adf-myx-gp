@@ -83,6 +83,7 @@ model = sm.OLS(y, X).fit()
 # Extract p-value for OI coefficient
 p_value = model.pvalues['OI']
 p_text = f"p-value: {p_value:.3e}"
+slope = model.params[1]
 
 model.summary()
 ```
@@ -101,47 +102,73 @@ To better illustrate the relationship, we construct a scatter plot with:
 - The p-value displayed on the figure
 
 ```{python}
-# Scatter plot
+# Scatter Plot
+
 scatter = alt.Chart(df_clean).mark_point(
     filled=True,
-    size=60,
+    size=75,
+    opacity=0.75,
     color="#1f77b4"
 ).encode(
-    x=alt.X('OI:Q', title='Opportunity Index (OI)'),
-    y=alt.Y('RI:Q', title='Resource Index (RI)'),
+    x=alt.X(
+        'OI:Q',
+        title='Opportunity Index (Structural Disadvantage)',
+        axis=alt.Axis(labelFontSize=12, titleFontSize=14)
+    ),
+    y=alt.Y(
+        'RI:Q',
+        title='Resource Index (Hard + Soft School Resources)',
+        axis=alt.Axis(labelFontSize=12, titleFontSize=14)
+    ),
     tooltip=[
         alt.Tooltip('Short_Name:N', title='School'),
-        alt.Tooltip('OI:Q'),
-        alt.Tooltip('RI:Q')
+        alt.Tooltip('OI:Q', title='Opportunity Index', format=".2f"),
+        alt.Tooltip('RI:Q', title='Resource Index', format=".2f")
     ]
 )
 
-# Add regression line
-regression = scatter.transform_regression('OI', 'RI').mark_line(
-    color='red',
+# Regression Line
+
+regression = scatter.transform_regression(
+    'OI', 'RI'
+).mark_line(
+    color='black',
     size=2
 )
 
-# Add p-value annotation
-text = alt.Chart(pd.DataFrame({'text':[p_text]})).mark_text(
+# Annotation (Slope + p-value)
+
+annotation_text = f"Slope = {slope:.2f} (p = {p_value:.3f})"
+
+annotation = alt.Chart(
+    pd.DataFrame({'text': [annotation_text]})
+).mark_text(
     align='right',
     baseline='bottom',
     dx=-10,
     dy=-10,
-    color='red',
-    fontSize=12
+    fontSize=11,
+    color='gray'
 ).encode(
-    x=alt.value(590),
-    y=alt.value(390),
+    x=alt.value(640),
+    y=alt.value(440),
     text='text:N'
 )
 
-# Combine layers
-chart = (scatter + regression + text).properties(
-    width=600,
-    height=400,
-    padding={"top": 15, "bottom": 15, "left": 10, "right": 10},
-    title='Resource Index vs Opportunity Index'
+# Combine Layers
+
+chart = (scatter + regression + annotation).properties(
+    width=700,
+    height=480,
+    title={
+        "text": "Do Higher-Need Schools Receive More Resources?",
+        "subtitle": [
+            "Opportunity Index measures structural disadvantage",
+            "Resource Index combines facility utilization and 5Essentials survey scores"
+        ],
+        "fontSize": 18,
+        "subtitleFontSize": 12
+    }
 )
 
 chart

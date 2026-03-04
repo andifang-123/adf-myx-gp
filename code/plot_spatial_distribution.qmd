@@ -140,7 +140,7 @@ comm_gdf.plot(
 # schools: below threshold (blue)
 schools_gdf.loc[~schools_gdf["above_thr"]].plot(
     ax=ax,
-    markersize=12,
+    markersize=15,
     color="#2b6cb0",
     alpha=0.75,
     linewidth=0,
@@ -151,7 +151,7 @@ schools_gdf.loc[~schools_gdf["above_thr"]].plot(
 # schools: above threshold (red)
 schools_gdf.loc[schools_gdf["above_thr"]].plot(
     ax=ax,
-    markersize=35,
+    markersize=25,
     color="#d62828",
     alpha=0.85,
     linewidth=0,
@@ -162,15 +162,29 @@ schools_gdf.loc[schools_gdf["above_thr"]].plot(
 ax.set_title("Chicago Public Schools by Community Areas", fontsize=16, pad=14)
 ax.set_axis_off()
 ax.legend(
-    title="Student Enrollment",
+    title="Student Enrollment (75th Percentile Split)",
     labels=[
-        "Schools at/below the 0.75 quantile",
-        "Schools above the 0.75 quantile"
+        "Enrollment ≤ 75th Percentile",
+        "Enrollment > 75th Percentile"
     ],
     loc="lower left",
-    frameon=True
+    frameon=True,
+    fontsize=12,
+    title_fontsize=13
 )
 
 plt.tight_layout()
 plt.show()
+```
+
+
+# Exporting High-Resolution PNG
+
+For submission purposes, we export the figure as a high-resolution PNG file.
+
+```{python}
+output_path = project_root / "data" / "derived-data" / "plot_app_spatial_scatter.png"
+
+fig.savefig(output_path, dpi=300, bbox_inches='tight')
+print(f"Saved plot as PNG: {output_path}")
 ```
