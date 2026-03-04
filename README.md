@@ -23,6 +23,7 @@ We evaluate:
 Streamlit Community Cloud deployment:
 
 🔗 **https://adf-myx-gp-structural-disadvantage.streamlit.app/**
+
 🔗 **https://adf-myx-gp-spatial-scatter.streamlit.app/**
 
 ---
@@ -130,21 +131,59 @@ data/derived-data/cps_df.csv
 ### Resource Index (RI)
 
 **Hard Resources**
-- Adjusted Space Utilization
-- Nonlinear crowding penalty centered at efficiency level
+
+Let:
+
+- $U_i$ = space utilization rate of school $i$  
+- $c = 0.85$ = efficiency center
+
+We apply a nonlinear crowding penalty centered at the optimal utilization level:
+
+$$
+Hard_i = - (U_i - c)^2
+$$
+
+This specification assigns the highest value to schools operating near the efficiency center and penalizes both overcrowding and underutilization.
+
+The measure is then standardized:
+
+$$
+Hard_i^{*} = \frac{Hard_i - \mu_{Hard}}{\sigma_{Hard}}
+$$
+
+---
 
 **Soft Resources**
-- Ambitious Instruction
-- Effective Leaders
-- Collaborative Teachers
-- Involved Families
-- Supportive Environment
 
-All components standardized (z-scores):
+Soft resources are derived from the five 5Essentials dimensions:
 
-$begin:math:display$
-RI \= 0\.5\(Hard\) \+ 0\.5\(Soft\)
-$end:math:display$
+- Ambitious Instruction (AI)
+- Effective Leaders (EL)
+- Collaborative Teachers (CT)
+- Involved Families (IF)
+- Supportive Environment (SE)
+
+Each component is standardized (z-score), and the composite score is computed as:
+
+$$
+Soft_i = \frac{
+Z_{AI,i} +
+Z_{EL,i} +
+Z_{CT,i} +
+Z_{IF,i} +
+Z_{SE,i}
+}{5}
+$$
+
+---
+
+**Final Resource Index**
+
+All components are standardized before aggregation:
+
+$$
+RI_i = 0.5 \cdot Hard_i^{*} + 0.5 \cdot Soft_i
+$$
 
 ---
 
@@ -159,64 +198,99 @@ Captures cumulative disadvantage exposure:
 
 Standardized and averaged:
 
-$begin:math:display$
-OI \= \(Z\_\{ED\} \+ Z\_\{ELL\} \+ Z\_\{DIS\} \+ Z\_\{RACE\}\) \/ 4
-$end:math:display$
+$$
+OI = \frac{Z_{ED} + Z_{ELL} + Z_{DIS} + Z_{RACE}}{4}
+$$
 
-Higher OI = greater structural disadvantage.
-
----
-
-## 📈 Analysis
-
-We estimate:
-
-$begin:math:display$
-RI \= \\alpha \+ \\beta OI \+ \\varepsilon
-$end:math:display$
-
-Using OLS regression.
-
-Outputs:
-- Scatter plot with regression line
-- p-value
-- Slope coefficient
-- Community-level spatial distribution maps
+Higher OI indicates greater structural disadvantage.
 
 ---
 
 ## 🚀 Running the Project
 
-### Install dependencies
+### 1️⃣ Install Dependencies
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
 ---
 
-### Run preprocessing
+### 2️⃣ Data Preprocessing
+
+All raw data are located in:
 
 ```
+data/raw-data/
+```
+
+To clean and merge datasets, run:
+
+```bash
 python code/preprocessing.py
+```
+
+This will generate:
+
+```
+data/derived-data/cps_df.csv
 ```
 
 ---
 
-### Launch Streamlit App
+### 3️⃣ Reproduce Analysis Figures (Quarto)
+
+The analytical visualizations are written in Quarto:
+
+- `code/analysis/plot_RI_vs_OI.qmd`
+- `code/analysis/plot_spatial_distribution.qmd`
+
+To render them:
+
+```bash
+quarto render code/analysis/plot_RI_vs_OI.qmd
+quarto render code/analysis/plot_spatial_distribution.qmd
+```
+
+This will generate corresponding PDF outputs.
+
+---
+
+### 4️⃣ Launch Streamlit Application
+
+The interactive dashboard is located in:
 
 ```
+streamlit-app/app.py
+```
+
+It imports visualization modules from:
+
+```
+code/streamlit_components/
+    ├── plot_app_structural_disadvantage.py
+    └── plot_app_spatial_scatter.py
+```
+
+To run locally:
+
+```bash
 streamlit run streamlit-app/app.py
 ```
 
 ---
 
-## 📌 Key Findings
+### 5️⃣ Full Reproduction Order
 
-- Resource allocation is not uniformly aligned with structural disadvantage.
-- There exists a statistically significant relationship between OI and academic performance.
-- High-need schools are spatially clustered in specific Chicago communities.
-- Current allocation mechanisms may not fully offset structural inequality.
+For a complete rebuild from scratch:
+
+```bash
+pip install -r requirements.txt
+python code/preprocessing.py
+quarto render code/analysis/plot_RI_vs_OI.qmd
+quarto render code/analysis/plot_spatial_distribution.qmd
+streamlit run streamlit-app/app.py
+```
 
 ---
 

@@ -208,3 +208,15 @@ __marimo__/
 .DS_Store
 .DS_Store
 **/.DS_Store
+.DS_Store
+.Rhistory
+.RData
+*~static_plot_2*
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv/
+.venv/
+.env/
+.DS_Store~static_plot_2
+.DS_Store~static_plot_1
