@@ -256,7 +256,6 @@ if main_section == "Introduction":
         unsafe_allow_html=True
     )
 
-# --- 页面 2: SPATIAL DISTRIBUTION ---
 elif main_section == "Spatial Distribution":
     st.header("Spatial Distribution")
     spatial_metric = st.selectbox("Select indicator", ["Resource Index", "Opportunity Index"], key="spatial_metric")
@@ -290,7 +289,6 @@ elif main_section == "Spatial Distribution":
     except Exception as e:
         st.error(f"Failed to build spatial section: {e}")
 
-# --- 页面 3: SCATTER PLOT ---
 elif main_section == "Scatter Plot":
     st.header("Scatter Plot Analysis")
     c1, c2 = st.columns(2)
