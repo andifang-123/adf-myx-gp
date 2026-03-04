@@ -37,7 +37,6 @@ group_col = group_map[group_choice]
 def draw_proficiency_chart(data, title, subgroup_name):
     plot_df = data.copy()
 
-    # 规范 Race 子群组
     if subgroup_name == "Race":
         plot_df["Student Group"] = plot_df["Student Group"].replace({
             "White": "White",
